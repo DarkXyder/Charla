@@ -1,0 +1,66 @@
+# Builds an unsigned Charla.ipa on GitHub's Mac runners. Install it with SideStore / iloader,
+# which sign it with your Apple ID. The newest build is always at Releases -> "latest".
+name: Build IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use the newest Xcode (iOS 26 SDK enables the on-device AI partner)
+        run: |
+          ls -d /Applications/Xcode*.app
+          X=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$X"
+          xcodebuild -version
+          brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild -project Charla.xcodeproj -scheme Charla -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          test -d build/Build/Products/Release-iphoneos/Charla.app
+
+      - name: Show errors
+        if: failure()
+        # As annotations too, so they can be read through the GitHub API.
+        run: |
+          grep -E "error:" build.log | sed 's|.*/Charla/Charla/||' | sort -u | head -45 | while IFS= read -r l; do echo "::error::$l"; done
+          true
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/Charla.app Payload/
+          zip -qry Charla.ipa Payload
+          ls -lh Charla.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Charla-ipa
+          path: Charla.ipa
+
+      - name: Publish to the "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          prerelease: true
+          body: "Unsigned build of ${{ github.sha }}. Download Charla.ipa on your iPhone and open it with SideStore."
+          files: Charla.ipa

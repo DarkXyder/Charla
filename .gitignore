@@ -1,0 +1,6 @@
+Charla.xcodeproj/
+build/
+Payload/
+*.ipa
+Charla/Info.plist
+.DS_Store
