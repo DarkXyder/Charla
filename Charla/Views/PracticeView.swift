@@ -31,7 +31,7 @@ struct PracticeView: View {
                 .padding(.vertical, 6)
             }
 
-            Section("Conversations") {
+            Section {
                 ForEach(course.units) { unit in
                     let open = progress.isCompleted(unit)
                     Button { chat = unit.conversation } label: {
@@ -50,6 +50,8 @@ struct PracticeView: View {
                     }
                     .disabled(!open)
                 }
+            } header: {
+                Text("Conversations")
             } footer: {
                 Text(TutorAvailability.status ?? "Your partner runs on this iPhone with Apple Intelligence: private, and it works offline.")
             }
